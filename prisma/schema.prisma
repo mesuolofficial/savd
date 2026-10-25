@@ -1,0 +1,623 @@
+// ============================================================================
+// SAVD Digital Platform — data model  (implements FR-25 at the database level)
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  EVENT_MANAGER
+  CERTIFICATE_MANAGER
+  REGISTRATION_REVIEWER
+  CONTENT_MANAGER
+}
+
+enum CompetitionType {
+  TEAM
+  INDIVIDUAL
+}
+
+enum RegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
+
+enum TeamMemberRole {
+  LEADER
+  MEMBER
+}
+
+enum MediaType {
+  PHOTO
+  VIDEO
+}
+
+enum MedalType {
+  GOLD
+  SILVER
+  BRONZE
+  NONE
+}
+
+enum ArchiveRoleType {
+  ORGANIZER
+  JUDGE
+  CHIEF_GUEST
+  PANEL_MEMBER
+}
+
+enum ReviewerRole {
+  PARTICIPANT
+  ORGANIZER
+  JUDGE
+  GUEST
+}
+
+enum ReviewStatus {
+  PENDING
+  PUBLISHED
+}
+
+enum MessageStatus {
+  UNREAD
+  READ
+  REPLIED
+}
+
+enum OtpPurpose {
+  MANAGE_TEAM
+  POST_REVIEW
+}
+
+enum SponsorTier {
+  SPONSOR
+  ORGANIZER
+  PARTNER
+  COLLABORATOR
+}
+
+enum PartnerType {
+  SOCIETY
+  INSTITUTE
+  AMBASSADOR
+}
+
+enum PartnerStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Admin {
+  id                 String       @id @default(cuid())
+  name               String
+  avatar             String?
+  email              String       @unique
+  passwordHash       String
+  role               AdminRole
+  isActive           Boolean      @default(true)
+  readOnly           Boolean      @default(false)
+  mustChangePassword Boolean      @default(false)
+  tempPasswordEnc    String?
+  competitionId      String?
+  competition        Competition? @relation(fields: [competitionId], references: [id], onDelete: SetNull)
+  failedAttempts     Int          @default(0)
+  lockedUntil        DateTime?
+  lastLoginAt        DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  sessions      AdminSession[]
+  resetOtps     AdminResetOtp[]
+  activityLogs  ActivityLog[]
+  replies       ReviewReply[]
+  galleryAlbums GalleryAlbum[]
+
+  @@index([competitionId])
+}
+
+model AdminSession {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  adminId   String
+  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([adminId])
+  @@index([expiresAt])
+}
+
+model AdminResetOtp {
+  id         String    @id @default(cuid())
+  adminId    String
+  admin      Admin     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  lastSentAt DateTime  @default(now())
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([adminId])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  adminId   String?
+  admin     Admin?   @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  adminName String
+  action    String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([adminId])
+}
+
+model SiteSettings {
+  id                     Int     @id @default(1)
+  siteTitle              String  @default("SAVD")
+  adminEmail             String?
+  contactPhone           String?
+  contactAddress         String?
+  facebookUrl            String?
+  instagramUrl           String?
+  twitterUrl             String?
+  maintenanceMode        Boolean @default(false)
+  globalRegistrationOpen Boolean @default(true)
+
+  sponsorOpen    Boolean @default(true)
+  partnerOpen    Boolean @default(true)
+  ambassadorOpen Boolean @default(true)
+
+  updatedAt DateTime @updatedAt
+}
+
+model Counter {
+  key   String @id
+  value Int    @default(0)
+}
+
+model University {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  logo      String?
+  createdAt DateTime @default(now())
+
+  teams         Team[]
+  registrations Registration[]
+}
+
+model Sponsor {
+  id         String      @id @default(cuid())
+  name       String
+  logo       String?
+  tier       SponsorTier @default(PARTNER)
+  websiteUrl String?
+  sortOrder  Int         @default(0)
+
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  message      String?
+  status       PartnerStatus @default(APPROVED)
+
+  createdAt DateTime @default(now())
+}
+
+model Partner {
+  id           String        @id @default(cuid())
+  name         String
+  type         PartnerType
+  referralCode String        @unique
+  status       PartnerStatus @default(PENDING)
+  createdAt    DateTime      @default(now())
+
+  institution    String?
+  campus         String?
+  city           String?
+  socialMediaUrl String?
+
+  advisorName  String?
+  advisorEmail String?
+  advisorPhone String?
+
+  presidentName   String?
+  presidentEmail  String?
+  presidentPhone  String?
+  presidentSocial String?
+
+  contactName        String?
+  contactDesignation String?
+  contactEmail       String?
+  contactPhone       String?
+
+  logoWithBg      String?
+  logoTransparent String?
+
+  additionalInfo String?
+
+  submittedBy            String?
+  submittedByDesignation String?
+
+  registrations Registration[]
+}
+
+model Competition {
+  id                   String          @id @default(cuid())
+  slug                 String          @unique
+  title                String
+  description          String          @default("")
+  rules                String          @default("")
+  eligibility          String          @default("")
+  prizes               Json?
+  venue                String          @default("")
+  startDate            DateTime
+  endDate              DateTime
+  registrationDeadline DateTime
+  banner               String?
+  bannerUrl            String?
+  rulebookUrl          String?
+  type                 CompetitionType @default(TEAM)
+  minTeamSize          Int             @default(1)
+  maxTeamSize          Int             @default(1)
+  isPublished          Boolean         @default(false)
+  registrationOpen     Boolean         @default(false)
+
+  allowMultipleTeams Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  archive       Archive?
+  registrations Registration[]
+  teams         Team[]
+  teamMembers   TeamMember[]
+  results       Result[]
+  requirements  ProgressRequirement[]
+  albums        GalleryAlbum[]
+  certificates  Certificate[]
+  reviews       Review[]
+  admins        Admin[]
+
+  @@index([isPublished, startDate])
+}
+
+model Archive {
+  id            String      @id @default(cuid())
+  competitionId String      @unique
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  isPublished   Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  roles ArchiveRole[]
+}
+
+model ArchiveRole {
+  id           String          @id @default(cuid())
+  archiveId    String
+  archive      Archive         @relation(fields: [archiveId], references: [id], onDelete: Cascade)
+  personId     String
+  person       Person          @relation(fields: [personId], references: [id], onDelete: Cascade)
+  role         ArchiveRoleType
+  isPrimary    Boolean         @default(false)
+  displayOrder Int             @default(0)
+
+  @@unique([archiveId, personId, role])
+  @@index([archiveId, role, displayOrder])
+}
+
+model Registration {
+  id                      String             @id @default(cuid())
+  competitionId           String
+  competition             Competition        @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  teamName                String
+  leaderName              String
+  leaderEmail             String
+  leaderWhatsapp          String
+  leaderSapId             String
+  leaderCnic              String?
+  leaderDepartment        String
+  leaderUniversity        String
+  leaderUniversityId      String?
+  leaderUniversityRel     University?        @relation(fields: [leaderUniversityId], references: [id], onDelete: SetNull)
+  leaderSociety           String?
+  referralCode            String?
+  partner                 Partner?           @relation(fields: [referralCode], references: [referralCode], onDelete: SetNull)
+  consentTransactionalSms Boolean
+  consentMarketingSms     Boolean
+  consentTerms            Boolean
+  status                  RegistrationStatus @default(PENDING)
+  submittedIp             String?
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+
+  members RegistrationMember[]
+  team    Team?
+
+  @@unique([competitionId, leaderEmail])
+  @@index([competitionId, status])
+  @@index([leaderUniversityId])
+  @@index([referralCode])
+}
+
+model RegistrationMember {
+  id             String       @id @default(cuid())
+  registrationId String
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  name           String
+  email          String
+  phone          String
+  sapId          String
+  cnic           String?
+  department     String
+}
+
+model Team {
+  id                   String        @id @default(cuid())
+  slug                 String        @unique
+  competitionId        String
+  competition          Competition   @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  registrationId       String?       @unique
+  registration         Registration? @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+  name                 String
+  universityId         String?
+  university           University?   @relation(fields: [universityId], references: [id], onDelete: Restrict)
+  universityText       String?
+  prototypeDescription String?
+  logo                 String?
+  reportFile           String?
+  posterFile           String?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  members  TeamMember[]
+  media    TeamMedia[]
+  results  Result[]
+  progress ProgressStatus[]
+
+  @@index([competitionId])
+}
+
+model TeamMember {
+  id            String         @id @default(cuid())
+  teamId        String
+  team          Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  competitionId String
+  competition   Competition    @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  personId      String
+  person        Person         @relation(fields: [personId], references: [id], onDelete: Cascade)
+  role          TeamMemberRole @default(MEMBER)
+
+  @@unique([teamId, personId])
+  @@unique([competitionId, personId])
+}
+
+model TeamMedia {
+  id        String    @id @default(cuid())
+  teamId    String
+  team      Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  type      MediaType
+  file      String
+  createdAt DateTime  @default(now())
+
+  @@index([teamId])
+}
+
+model Person {
+  id          String   @id @default(cuid())
+  savdId      String   @unique
+  name        String
+  email       String?
+  phone       String?
+  studentId   String?
+  cnic        String?
+  department  String?
+  university  String?
+  society     String?
+  bio         String?
+  photo       String?
+  memberSince Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  teamMemberships TeamMember[]
+  archiveRoles    ArchiveRole[]
+  certificates    Certificate[]
+  reviews         Review[]
+
+  @@index([name])
+  @@index([email])
+  @@index([studentId])
+  @@index([cnic])
+}
+
+model PersonMergeLog {
+  id              String   @id @default(cuid())
+  primaryId       String
+  primarySavdId   String
+  primaryName     String
+  duplicateSavdId String
+  duplicateName   String
+  adminId         String?
+  adminName       String
+  moved           Json
+  createdAt       DateTime @default(now())
+}
+
+model Certificate {
+  id            String       @id @default(cuid())
+  personId      String
+  person        Person       @relation(fields: [personId], references: [id], onDelete: Restrict)
+  competitionId String?
+  competition   Competition? @relation(fields: [competitionId], references: [id], onDelete: SetNull)
+  serial        String       @unique
+  title         String
+  issueDate     DateTime?
+  file          String?
+  thumb         String?
+  notifiedAt    DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([personId])
+  @@index([competitionId])
+}
+
+model Result {
+  id            String      @id @default(cuid())
+  competitionId String
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  label         String
+  medal         MedalType   @default(NONE)
+  sortOrder     Int         @default(0)
+  teamId        String?
+  team          Team?       @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  awardNote     String?
+
+  @@unique([competitionId, label])
+  @@index([competitionId, sortOrder])
+}
+
+model ProgressRequirement {
+  id            String      @id @default(cuid())
+  competitionId String
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  name          String
+  sortOrder     Int         @default(0)
+
+  statuses ProgressStatus[]
+
+  @@unique([competitionId, name])
+}
+
+model ProgressStatus {
+  id            String              @id @default(cuid())
+  teamId        String
+  team          Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  requirementId String
+  requirement   ProgressRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  done          Boolean             @default(false)
+  updatedAt     DateTime            @updatedAt
+
+  @@unique([teamId, requirementId])
+}
+
+model GalleryAlbum {
+  id            String       @id @default(cuid())
+  slug          String       @unique
+  title         String
+  description   String?
+  competitionId String?
+  competition   Competition? @relation(fields: [competitionId], references: [id], onDelete: SetNull)
+  externalUrl   String?
+  coverImage    String?
+  isPublished   Boolean      @default(false)
+  
+  createdById   String?
+  createdBy     Admin?       @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  media GalleryMedia[]
+
+  @@index([competitionId])
+}
+
+model GalleryMedia {
+  id        String       @id @default(cuid())
+  albumId   String
+  album     GalleryAlbum @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  type      MediaType
+  file      String
+  caption   String?
+  createdAt DateTime     @default(now())
+
+  @@index([albumId])
+}
+
+model Review {
+  id            String       @id @default(cuid())
+  competitionId String
+  competition   Competition  @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  personId      String
+  person        Person       @relation(fields: [personId], references: [id], onDelete: Cascade)
+  role          ReviewerRole
+  text          String
+  status        ReviewStatus @default(PENDING)
+  createdAt     DateTime     @default(now())
+  publishedAt   DateTime?
+  notifiedAt    DateTime?
+
+  replies ReviewReply[]
+
+  @@index([competitionId, status])
+}
+
+model ReviewReply {
+  id        String   @id @default(cuid())
+  reviewId  String
+  review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  adminId   String?
+  admin     Admin?   @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  message   String
+  createdAt DateTime @default(now())
+
+  @@index([reviewId])
+}
+
+model ContactMessage {
+  id        String        @id @default(cuid())
+  name      String
+  email     String
+  subject   String
+  message   String
+  imageFile String?
+  status    MessageStatus @default(UNREAD)
+  createdAt DateTime      @default(now())
+
+  @@index([status, createdAt])
+}
+
+model ParticipantOtp {
+  id         String     @id @default(cuid())
+  purpose    OtpPurpose
+  email      String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int        @default(0)
+  lastSentAt DateTime   @default(now())
+  consumedAt DateTime?
+  createdAt  DateTime   @default(now())
+
+  @@index([email, purpose])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+}
+
+model Apk {
+  id        String   @id @default(cuid())
+  version   String
+  fileName  String
+  notes     String?
+  createdAt DateTime @default(now())
+}

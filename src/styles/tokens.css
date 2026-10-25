@@ -1,0 +1,67 @@
+/* ============================================================================
+   SAVD design tokens — Tailwind v4 is CSS-first, so these ARE the theme.
+   (There is no tailwind.config.ts in a v4 project.)
+   Source of truth: SAVD_DESIGN_LAYOUT_SPEC.md, Part A2.
+   ============================================================================ */
+
+@theme {
+  /* surfaces — dark */
+  --color-abyss: #0f2f4b;
+  --color-deep: #163f63;
+  --color-tide: #1f5280;
+
+  /* brand */
+  --color-signal: #226192;
+  --color-signal-light: #2f79b0;
+  --color-signal-tint: #8ec1e8; /* links on abyss (flat signal is too dark at small sizes) */
+  --color-aqua: #8ec1e8; /* data highlights, sonar — never body text */
+  --color-coral: #ef8557;
+  --color-gold: #d9a441; /* medals / prizes ONLY */
+
+  /* surfaces — light */
+  --color-porcelain: #eae6de;
+  --color-ivory: #f6f3ec;
+  --color-canvas: #efebe3; /* admin page background */
+
+  /* text + lines */
+  --color-ink: #14202b;
+  --color-mist: #5d6d7a;
+  --color-line: #d8d2c6;
+
+  /* status */
+  --color-success: #1f9d6b;
+  --color-warning: #e0a100;
+  --color-danger: #d64545;
+  --color-info: #2f80ed;
+
+  /* medals */
+  --color-medal-gold: #d9a441;
+  --color-medal-silver: #a9b4bf;
+  --color-medal-bronze: #b87333;
+
+  /* motion */
+  --animate-marquee: marquee 40s linear infinite;
+  --animate-sonar: sonar 4s ease-out infinite;
+  --animate-prop: savd-prop 1.2s linear infinite;
+
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  @keyframes sonar {
+    0% { transform: scale(0.35); opacity: 0.55; }
+    100% { transform: scale(2.4); opacity: 0; }
+  }
+  @keyframes savd-prop {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+}
+
+/* fonts are loaded in app/layout.tsx via next/font and exposed as CSS variables */
+@theme inline {
+  --font-sans: var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-barlow-condensed), "Arial Narrow", ui-sans-serif, sans-serif;
+  --font-serif: var(--font-lora), Georgia, serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+}
