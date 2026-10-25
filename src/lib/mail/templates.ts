@@ -530,8 +530,4 @@ export function renderAdminNewContactMessage(p_: { name: string; email: string; 
     tone: K.aqua,
     body: p("You have received a new message from the website contact form.") + table + cta("View message", p_.adminUrl),
   });
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 555a1a44c33b7edd7f1ed8f90db18332fb5b61ff
