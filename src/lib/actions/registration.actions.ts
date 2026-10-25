@@ -6,14 +6,20 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rateLimit";
 import { formatDateTime } from "@/lib/format";
-import { sendEmail, adminAlertEmails } from "@/lib/mail/brevo";
-import { renderRegistrationReceived, renderAdminNewRegistration, renderRegistrationStatus } from "@/lib/mail/templates";
+import { sendEmail, adminAlertEmails, getMailContact } from "@/lib/mail/brevo";
+import {
+  renderRegistrationReceived,
+  renderAdminNewRegistration,
+  renderRegistrationStatus,
+  siteUrl,
+  type RosterMember,
+} from "@/lib/mail/templates";
 import { registrationSchema } from "@/lib/validators/registration.schema";
 import { submitRegistration } from "@/lib/services/registration.service";
 import { createPersonFromRegistration } from "@/lib/services/person.service";
 import { requireAdmin } from "@/lib/auth";
 import { logAction } from "@/lib/activityLog";
-import { slugify } from "@/lib/slug"; // 👈 YEH IMPORT ADD KAREIN
+import { slugify } from "@/lib/slug";
 
 export type RegistrationActionState = {
   error?: string;
@@ -32,6 +38,34 @@ function flattenMembers(fd: FormData) {
     rows.get(idx)![field] = value;
   }
   return [...rows.entries()].sort(([a], [b]) => a - b).map(([, r]) => r);
+}
+
+type RegistrationWithPeople = {
+  leaderName: string;
+  leaderEmail: string;
+  leaderWhatsapp: string;
+  leaderSapId: string;
+  leaderDepartment: string;
+  members: { name: string; email: string; phone: string; sapId: string; department: string }[];
+};
+
+/** Leader first, then members. Carries email/phone; the templates decide who may see them. */
+function buildRoster(r: RegistrationWithPeople): RosterMember[] {
+  return [
+    { name: r.leaderName, role: "Leader", department: r.leaderDepartment, studentId: r.leaderSapId, email: r.leaderEmail, phone: r.leaderWhatsapp },
+    ...r.members.map((m) => ({ name: m.name, role: "Member" as const, department: m.department, studentId: m.sapId, email: m.email, phone: m.phone })),
+  ];
+}
+
+/** One mail per distinct email address, each addressed to that person by name. */
+function distinctRecipients(roster: RosterMember[]) {
+  const seen = new Set<string>();
+  return roster.filter((m) => {
+    const k = (m.email || "").trim().toLowerCase();
+    if (!k || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
 }
 
 export async function submitRegistrationAction(
@@ -78,7 +112,7 @@ export async function submitRegistrationAction(
   if (!result.ok) return { error: result.error, fieldErrors: result.fieldErrors };
 
   try {
-    await sendAllEmails(competitionSlug, result.registrationId, ip);
+    await sendAllEmails(result.registrationId, ip);
   } catch (e) {
     console.error("[registration.actions] email dispatch crashed:", e);
   }
@@ -86,108 +120,129 @@ export async function submitRegistrationAction(
   redirect(`/registration-success?team=${encodeURIComponent(result.teamName)}&comp=${encodeURIComponent(competitionSlug)}`);
 }
 
-async function sendAllEmails(competitionSlug: string, registrationId: string, submittedIp: string) {
+async function sendAllEmails(registrationId: string, submittedIp: string) {
+  // Save the IP first so it is kept even if mail dispatch fails.
+  await prisma.registration.update({ where: { id: registrationId }, data: { submittedIp } }).catch(() => {});
+
   const registration = await prisma.registration.findUnique({
     where: { id: registrationId },
     include: { competition: true, members: true },
   });
   if (!registration) return;
 
-  const siteUrl = process.env.SITE_URL || "http://localhost:3000";
+  const site = siteUrl();
+  const contact = await getMailContact();
   const competition = registration.competition;
+  const roster = buildRoster(registration);
 
-  const participants = [
-    { email: registration.leaderEmail, name: registration.leaderName, isLeader: true },
-    ...registration.members.map((m) => ({ email: m.email, name: m.name, isLeader: false })),
-  ].filter((p) => p.email);
-
-  const sends: Promise<unknown>[] = participants.map((p) => {
-    const html = renderRegistrationReceived({
-      isLeader: p.isLeader,
-      recipientName: p.name,
-      teamName: registration.teamName,
-      competitionTitle: competition.title,
-      competitionSlug: competition.slug,
-      siteUrl,
-      leaderName: registration.leaderName,
-    });
-    return sendEmail({
-      to: [{ email: p.email, name: p.name }],
+  // 1. Every team member gets their own mail, addressed by name.
+  const sends: Promise<unknown>[] = distinctRecipients(roster).map((person) =>
+    sendEmail({
+      to: [{ email: person.email!, name: person.name }],
       subject: `Registration received — ${registration.teamName}`,
-      html,
-    });
-  });
+      html: renderRegistrationReceived({
+        isLeader: person.role === "Leader",
+        recipientName: person.name,
+        teamName: registration.teamName,
+        competitionTitle: competition.title,
+        competitionSlug: competition.slug,
+        siteUrl: site,
+        leaderName: registration.leaderName,
+        members: roster,
+        contact,
+      }),
+      tags: ["registration-received"],
+    }),
+  );
 
+  // 2. Admins get one alert with the full roster.
   const admins = adminAlertEmails();
   if (admins.length) {
-    const html = renderAdminNewRegistration({
-      teamName: registration.teamName,
-      competitionTitle: competition.title,
-      leaderName: registration.leaderName,
-      leaderEmail: registration.leaderEmail,
-      leaderWhatsapp: registration.leaderWhatsapp,
-      leaderUniversity: registration.leaderUniversity,
-      teamSize: 1 + registration.members.length,
-      submittedAt: formatDateTime(registration.createdAt),
-      adminUrl: `${siteUrl}/admin/registrations`,
-    });
-    sends.push(sendEmail({ to: admins.map((email) => ({ email })), subject: `New registration: ${registration.teamName}`, html }));
+    sends.push(
+      sendEmail({
+        to: admins.map((email) => ({ email })),
+        subject: `New registration: ${registration.teamName} — ${competition.title}`,
+        html: renderAdminNewRegistration({
+          teamName: registration.teamName,
+          competitionTitle: competition.title,
+          leaderName: registration.leaderName,
+          leaderEmail: registration.leaderEmail,
+          leaderWhatsapp: registration.leaderWhatsapp,
+          leaderUniversity: registration.leaderUniversity,
+          teamSize: roster.length,
+          submittedAt: formatDateTime(registration.createdAt),
+          adminUrl: `${site}/admin/registrations/${registration.id}`,
+          members: roster,
+        }),
+        replyTo: { email: registration.leaderEmail, name: registration.leaderName },
+        tags: ["admin-new-registration"],
+      }),
+    );
   }
 
-  await prisma.registration.update({ where: { id: registrationId }, data: { submittedIp } }).catch(() => {});
   await Promise.allSettled(sends);
 }
 
 export async function updateRegistrationStatusAction(regId: string, status: "APPROVED" | "REJECTED" | "WITHDRAWN") {
   const admin = await requireAdmin("registrations", "full");
-  
+
   const registration = await prisma.registration.findUnique({
     where: { id: regId },
     include: { competition: true, members: true },
   });
-  
+
   if (!registration) return { error: "Registration not found." };
 
   await prisma.registration.update({ where: { id: regId }, data: { status } });
   await logAction(admin, `Marked registration for "${registration.teamName}" as ${status}`);
 
-  const siteUrl = process.env.SITE_URL || "http://localhost:3000";
-  const recipients = [
-    { email: registration.leaderEmail, name: registration.leaderName },
-    ...registration.members.map(m => ({ email: m.email, name: m.name }))
-  ].filter(r => r.email);
+  const site = siteUrl();
+  const contact = await getMailContact();
+  const roster = buildRoster(registration);
 
-  const sends = recipients.map(r => {
-    const html = renderRegistrationStatus({
-      teamName: registration.teamName,
-      competitionTitle: registration.competition.title,
-      status,
-      leaderName: registration.leaderName,
-      siteUrl,
-      competitionSlug: registration.competition.slug,
-    });
-    return sendEmail({ to: [{ email: r.email, name: r.name }], subject: `Update on registration: ${registration.teamName}`, html });
-  });
+  // Every member gets their own mail, addressed by name, with the team roster.
+  const sends = distinctRecipients(roster).map((person) =>
+    sendEmail({
+      to: [{ email: person.email!, name: person.name }],
+      subject:
+        status === "APPROVED" ? `Approved: ${registration.teamName} is in ${registration.competition.title}`
+        : status === "WITHDRAWN" ? `Team withdrawn: ${registration.teamName}`
+        : `Update on registration: ${registration.teamName}`,
+      html: renderRegistrationStatus({
+        teamName: registration.teamName,
+        competitionTitle: registration.competition.title,
+        status,
+        recipientName: person.name,
+        leaderName: registration.leaderName,
+        siteUrl: site,
+        competitionSlug: registration.competition.slug,
+        members: roster,
+        contact,
+      }),
+      tags: [`registration-${status.toLowerCase()}`],
+    }),
+  );
 
   await Promise.allSettled(sends);
   revalidatePath("/admin/registrations");
   revalidatePath(`/admin/registrations/${regId}`);
+  return { ok: true };
 }
 
 export async function convertToTeamAction(registrationId: string) {
   const admin = await requireAdmin("registrations", "full");
-  
+
   const reg = await prisma.registration.findUnique({
     where: { id: registrationId },
-    include: { competition: true, members: true, team: true }, // 👈 YAHAN team: true ADD KAREIN
+    include: { competition: true, members: true, team: true },
   });
-  
+
   if (!reg) return { error: "Registration not found." };
   if (reg.status !== "APPROVED") return { error: "Registration must be approved first." };
   if (reg.team) return { error: "Team already created for this registration." };
 
   try {
-    // 👈 SLUG GENERATE KARNE KA LOGIC
+    // Unique team slug
     const baseSlug = slugify(`${reg.competition.title.substring(0, 15)}-${reg.teamName}`);
     let uniqueSlug = baseSlug;
     let counter = 1;
@@ -197,7 +252,7 @@ export async function convertToTeamAction(registrationId: string) {
 
     const team = await prisma.team.create({
       data: {
-        slug: uniqueSlug, // 👈 YEH LINE ADD KAREIN
+        slug: uniqueSlug,
         competitionId: reg.competitionId,
         registrationId: reg.id,
         name: reg.teamName,
@@ -236,7 +291,7 @@ export async function convertToTeamAction(registrationId: string) {
         sapId: m.sapId,
         cnic: m.cnic || "",
         department: m.department,
-        university: reg.leaderUniversity, 
+        university: reg.leaderUniversity,
       });
 
       await prisma.teamMember.create({

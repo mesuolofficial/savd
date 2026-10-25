@@ -13,7 +13,7 @@ export async function saveResultAction(prevState: any, fd: FormData) {
   const competitionId = String(fd.get("competitionId") || "");
   const id = String(fd.get("id") || ""); // If editing existing
   const label = String(fd.get("label") || "").trim();
-  const medal = String(fd.get("medal") || "NONE") as any;
+  const medal = String(fd.get("medal") || "NONE");
   const teamId = String(fd.get("teamId") || "") || null;
   const awardNote = String(fd.get("awardNote") || "").trim() || null;
   const sendEmailNotif = fd.get("sendEmail") === "on";
@@ -25,12 +25,12 @@ export async function saveResultAction(prevState: any, fd: FormData) {
     if (id) {
       result = await prisma.result.update({
         where: { id },
-        data: { label, medal, teamId, awardNote },
+        data: { label, medal: medal as any, teamId, awardNote },
       });
       await logAction(admin, `Updated result position "${label}"`);
     } else {
       result = await prisma.result.create({
-        data: { competitionId, label, medal, teamId, awardNote },
+        data: { competitionId, label, medal: medal as any, teamId, awardNote },
       });
       await logAction(admin, `Added result position "${label}"`);
     }
@@ -47,14 +47,19 @@ export async function saveResultAction(prevState: any, fd: FormData) {
 
       if (team) {
         const siteUrl = process.env.SITE_URL || "http://localhost:3000";
-        const recipients = team.members.map(m => m.person).filter(p => p.email);
         
-        for (const p of recipients) {
+        // 👈 FIXED: Loop over members to get isLeader correctly
+        const recipients = team.members.filter(m => m.person.email);
+        
+        for (const m of recipients) {
+          const p = m.person;
           const html = renderResultCongratulations({
+            recipientName: p.name,            // 👈 FIXED: Added required prop
+            isLeader: m.role === "LEADER",    // 👈 FIXED: Added required prop
             teamName: team.name,
             competitionTitle: team.competition.title,
             position: label,
-            medal,
+            medal: medal as string,           // 👈 FIXED: Ensured it's a string
             siteUrl,
             competitionSlug: team.competition.slug,
           });
