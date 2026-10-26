@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import { updateRegistrationStatusAction, convertToTeamAction } from "@/lib/actions/registration.actions";
+import { DeleteRegistrationButton } from "@/components/admin/DeleteRegistrationButton";
 
 export default async function RegistrationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAdmin("registrations", "full");
@@ -116,6 +117,17 @@ export default async function RegistrationDetailPage({ params }: { params: Promi
                   <Link href={`/admin/teams/${reg.team.id}`} className="btn btn-outline-light w-full">Manage Team</Link>
                 </div>
               )}
+
+              {/* Delete (no emails are sent) */}
+              <div className="mt-4 border-t border-line pt-4">
+                {reg.team ? (
+                  <p className="text-xs text-mist text-center">
+                    To delete this registration, delete its team profile first.
+                  </p>
+                ) : (
+                  <DeleteRegistrationButton regId={reg.id} teamName={reg.teamName || "this team"} />
+                )}
+              </div>
             </div>
           </div>
 

@@ -1,7 +1,7 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { headers } from "next/headers";
+import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/rateLimit";
@@ -24,6 +24,9 @@ import { slugify } from "@/lib/slug";
 export type RegistrationActionState = {
   error?: string;
   fieldErrors?: Record<string, string>;
+  success?: boolean;
+  teamName?: string;
+  redirectTo?: string;
 };
 
 function flattenMembers(fd: FormData) {
@@ -73,51 +76,63 @@ export async function submitRegistrationAction(
   _prev: RegistrationActionState,
   fd: FormData,
 ): Promise<RegistrationActionState> {
-  const h = await headers();
-  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
-
-  if (!rateLimit(`register:${ip}`, 5, 10 * 60 * 1000).ok) {
-    return { error: "Too many registration attempts. Please try again later." };
-  }
-
-  const raw = {
-    teamName: fd.get("teamName"),
-    leaderName: fd.get("leaderName"),
-    leaderEmail: fd.get("leaderEmail"),
-    leaderWhatsapp: fd.get("leaderWhatsapp"),
-    leaderSapId: fd.get("leaderSapId"),
-    leaderCnic: fd.get("leaderCnic"),
-    leaderDepartment: fd.get("leaderDepartment"),
-    leaderUniversityId: fd.get("leaderUniversityId"),
-    leaderUniversityText: fd.get("leaderUniversityText"),
-    leaderSociety: fd.get("leaderSociety") || "",
-    referralCode: fd.get("referralCode") || "",
-    members: flattenMembers(fd),
-    consentTransactionalSms: fd.get("consentTransactionalSms"),
-    consentMarketingSms: fd.get("consentMarketingSms"),
-    consentTerms: fd.get("consentTerms"),
-  };
-
-  const parsed = registrationSchema.safeParse(raw);
-  if (!parsed.success) {
-    const fieldErrors: Record<string, string> = {};
-    for (const issue of parsed.error.issues) {
-      const key = issue.path.join(".");
-      if (!fieldErrors[key]) fieldErrors[key] = issue.message;
-    }
-    return { error: "Please fix the highlighted fields.", fieldErrors };
-  }
-
-  const result = await submitRegistration(competitionSlug, parsed.data);
-  if (!result.ok) return { error: result.error, fieldErrors: result.fieldErrors };
-
   try {
-    await sendAllEmails(result.registrationId, ip);
-  } catch (e) {
-    console.error("[registration.actions] email dispatch crashed:", e);
-  }
+    const h = await headers();
+    const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
 
-  redirect(`/registration-success?team=${encodeURIComponent(result.teamName)}&comp=${encodeURIComponent(competitionSlug)}`);
+    if (!rateLimit(`register:${ip}`, 5, 10 * 60 * 1000).ok) {
+      return { error: "Too many registration attempts from your network. Please wait a few minutes and try again." };
+    }
+
+    const raw = {
+      teamName: fd.get("teamName"),
+      leaderName: fd.get("leaderName"),
+      leaderEmail: fd.get("leaderEmail"),
+      leaderWhatsapp: fd.get("leaderWhatsapp"),
+      leaderSapId: fd.get("leaderSapId"),
+      leaderCnic: fd.get("leaderCnic"),
+      leaderDepartment: fd.get("leaderDepartment"),
+      leaderUniversityId: fd.get("leaderUniversityId"),
+      leaderUniversityText: fd.get("leaderUniversityText"),
+      leaderSociety: fd.get("leaderSociety") || "",
+      referralCode: fd.get("referralCode") || "",
+      members: flattenMembers(fd),
+      consentTransactionalSms: fd.get("consentTransactionalSms"),
+      consentMarketingSms: fd.get("consentMarketingSms"),
+      consentTerms: fd.get("consentTerms"),
+    };
+
+    const parsed = registrationSchema.safeParse(raw);
+    if (!parsed.success) {
+      const fieldErrors: Record<string, string> = {};
+      for (const issue of parsed.error.issues) {
+        const key = issue.path.join(".");
+        if (!fieldErrors[key]) fieldErrors[key] = issue.message;
+      }
+      return { error: "Please fix the highlighted fields.", fieldErrors };
+    }
+
+    const result = await submitRegistration(competitionSlug, parsed.data);
+    if (!result.ok) return { error: result.error, fieldErrors: result.fieldErrors };
+
+    // Emails go out in the background so the user never waits on Brevo.
+    after(async () => {
+      try {
+        await sendAllEmails(result.registrationId, ip);
+      } catch (e) {
+        console.error("[registration.actions] email dispatch crashed:", e);
+      }
+    });
+
+    return {
+      success: true,
+      teamName: result.teamName,
+      redirectTo: `/registration-success?team=${encodeURIComponent(result.teamName)}&comp=${encodeURIComponent(competitionSlug)}`,
+    };
+  } catch (e) {
+    console.error("[registration.actions] submit crashed:", e);
+    return { error: "Something went wrong on our side. Please try again in a moment." };
+  }
 }
 
 async function sendAllEmails(registrationId: string, submittedIp: string) {
@@ -314,5 +329,31 @@ export async function convertToTeamAction(registrationId: string) {
   } catch (e) {
     console.error("Team creation failed:", e);
     return { error: "Failed to create team. Check logs." };
+  }
+}
+
+/** Admin-only hard delete. No emails are sent. Members are removed by the DB cascade. */
+export async function deleteRegistrationAction(regId: string): Promise<{ ok?: true; error?: string }> {
+  const admin = await requireAdmin("registrations", "full");
+
+  try {
+    const reg = await prisma.registration.findUnique({
+      where: { id: regId },
+      include: { competition: { select: { title: true } }, team: { select: { id: true } } },
+    });
+    if (!reg) return { error: "Registration not found. It may already be deleted." };
+    if (reg.team) {
+      return { error: "A team profile was created from this registration. Delete that team first, then delete the registration." };
+    }
+
+    await prisma.registration.delete({ where: { id: regId } });
+    await logAction(admin, `Deleted registration "${reg.teamName}" (${reg.competition.title})`);
+
+    revalidatePath("/admin/registrations");
+    revalidatePath("/admin/dashboard");
+    return { ok: true };
+  } catch (e) {
+    console.error("[registration.actions] delete failed:", e);
+    return { error: "Could not delete the registration. Please try again." };
   }
 }
