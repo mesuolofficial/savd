@@ -6,6 +6,7 @@ import { Countdown } from "@/components/public/Countdown";
 import { getSettings } from "@/lib/settings";
 import { Marquee, initials } from "@/components/public/Marquee";
 import { Testimonials } from "@/components/public/Testimonials";
+import { SponsorCard } from "@/components/public/SponsorCard";
 
 const ROLE_LABEL = { PARTICIPANT: "Participant", ORGANIZER: "Organizer", JUDGE: "Judge", GUEST: "Guest" } as const;
 
@@ -35,7 +36,7 @@ export default async function HomePage() {
   }) : [];
 
   const [sponsorList, reviewList] = await Promise.all([
-    prisma.sponsor.findMany({ orderBy: [{ tier: "asc" }, { sortOrder: "asc" }, { name: "asc" }] }),
+    prisma.sponsor.findMany({ where: { status: "APPROVED" }, orderBy: [{ tier: "asc" }, { sortOrder: "asc" }, { name: "asc" }] }),
     prisma.review.findMany({
       where: { status: "PUBLISHED" }, orderBy: { publishedAt: "desc" }, take: 8,
       include: { person: { select: { name: true, photo: true } }, competition: { select: { title: true } } },
@@ -136,14 +137,7 @@ export default async function HomePage() {
             <svg className="wtop" viewBox="0 0 1440 70" preserveAspectRatio="none" aria-hidden="true"><path fill="var(--ivory)" d="M0 0H1440V28C1220 72 1010 4 730 32S250 64 0 22Z" /></svg>
             <div className="wrap rv"><p className="ey">Our partners</p><h2>Backed by the best</h2></div>
             <Marquee label="Sponsors and partners" items={sponsorList.map((sp) => (
-              <div key={sp.id} style={{ width: 240, height: 110, background: "#fff", borderRadius: 16, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 12, margin: "0 10px", flexShrink: 0 }}>
-                {sp.logo ? (
-                  <img src={sp.logo} alt={sp.name} style={{ maxHeight: 60, maxWidth: "100%", objectFit: "contain" }} />
-                ) : (
-                  <span style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700, textAlign: "center", color: "#14202b" }}>{sp.name}</span>
-                )}
-                <span style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: "#5d6d7a", marginTop: 8 }}>{sp.tier}</span>
-              </div>
+              <SponsorCard key={sp.id} name={sp.name} logo={sp.logo} tier={sp.tier} url={sp.websiteUrl} />
             ))} />
             <div className="wrap rv"><Link className="btn b2" href="/sponsors">Become a sponsor</Link></div>
           </section>

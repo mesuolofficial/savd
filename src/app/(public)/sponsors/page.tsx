@@ -3,6 +3,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { MeltEdge } from "@/components/public/MeltEdge";
 import { Marquee } from "@/components/public/Marquee";
+import { SponsorCard } from "@/components/public/SponsorCard";
+import { externalUrl } from "@/lib/url";
 
 export const metadata: Metadata = { title: "Sponsors, Partners & Ambassadors" };
 
@@ -32,7 +34,7 @@ export default async function SponsorsPage() {
       </header>
       <MeltEdge seed={99} />
 
-      <section className="pg">
+      <section className="pg" style={{ overflowX: "clip" }}>
         <div className="wrap">
           
           {/* 1. SPONSORS & ORGANIZERS SECTION */}
@@ -45,19 +47,14 @@ export default async function SponsorsPage() {
             {sponsors.length === 0 ? (
               <p className="empty">Sponsors will be announced soon.</p>
             ) : (
+              <div style={{ width: "100vw", marginLeft: "calc(50% - 50vw)" }}>
               <Marquee 
                 label="Sponsors and Organizers" 
                 items={sponsors.map((s) => (
-                  <div key={s.id} style={{ width: 240, height: 120, background: "#fff", borderRadius: 16, border: "1px solid var(--line)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 16, margin: "0 10px" }}>
-                    {s.logo ? (
-                      <img src={s.logo} alt={s.name} style={{ maxHeight: 60, maxWidth: "100%" }} />
-                    ) : (
-                      <span style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700, textAlign: "center" }}>{s.name}</span>
-                    )}
-                    <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "var(--color-mist)", marginTop: 12 }}>{s.tier}</span>
-                  </div>
+                  <SponsorCard key={s.id} size="lg" name={s.name} logo={s.logo} tier={s.tier} url={s.websiteUrl} />
                 ))} 
               />
+              </div>
             )}
             <div style={{ textAlign: "center", marginTop: 40 }}>
               <Link href="/sponsors/apply/sponsor" className="btn b1">Become a Sponsor</Link>
@@ -75,12 +72,23 @@ export default async function SponsorsPage() {
               <p className="empty">Partners will be announced soon.</p>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20 }}>
-                {partners.map((p) => (
-                  <div key={p.id} className="card" style={{ padding: 24, textAlign: "center" }}>
-                    <div style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700, color: "var(--color-ink)" }}>{p.name}</div>
-                    <div style={{ fontSize: 12, color: "var(--color-mist)", marginTop: 8 }}>{p.institution || p.type}</div>
-                  </div>
-                ))}
+                {partners.map((p) => {
+                  const href = externalUrl(p.socialMediaUrl);
+                  const inner = (
+                    <>
+                      <div style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700, color: "var(--color-ink)" }}>{p.name}</div>
+                      <div style={{ fontSize: 12, color: "var(--color-mist)", marginTop: 8 }}>{p.institution || p.type}</div>
+                      {href ? <div style={{ fontSize: 12, color: "var(--color-signal)", marginTop: 10, fontWeight: 600 }}>Follow us ↗</div> : null}
+                    </>
+                  );
+                  return href ? (
+                    <a key={p.id} href={href} target="_blank" rel="noopener noreferrer" className="card transition duration-200 hover:-translate-y-1 hover:shadow-lg" style={{ padding: 24, textAlign: "center", display: "block", textDecoration: "none" }}>
+                      {inner}
+                    </a>
+                  ) : (
+                    <div key={p.id} className="card" style={{ padding: 24, textAlign: "center" }}>{inner}</div>
+                  );
+                })}
               </div>
             )}
             <div style={{ textAlign: "center", marginTop: 40 }}>
