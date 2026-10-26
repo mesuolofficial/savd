@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { MeltEdge } from "@/components/public/MeltEdge";
 import type { Metadata } from "next";
+import { TeamMediaGallery } from "@/components/public/TeamMediaGallery";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -93,17 +94,7 @@ export default async function TeamProfilePage({ params }: { params: Promise<{ sl
             {team.media.length > 0 && (
               <div className="card p-4 sm:p-6">
                 <h2 className="text-xl font-bold text-ink mb-4 border-b border-line pb-2">Prototype Media</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  {team.media.map(m => (
-                    <div key={m.id} className="rounded-lg overflow-hidden border border-line">
-                      {m.type === "PHOTO" ? (
-                        <img src={m.file} alt="media" className="w-full h-48 sm:h-32 object-cover hover:scale-105 transition-transform" />
-                      ) : (
-                        <video src={m.file} className="w-full h-48 sm:h-32 object-cover" controls />
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <TeamMediaGallery items={team.media.map((m) => ({ id: m.id, type: m.type, file: m.file }))} />
               </div>
             )}
 

@@ -63,9 +63,9 @@ export default function VerifyCertificatePage() {
 
       <section className="pg">
         <div className="wrap max-w-4xl mx-auto">
-          <form onSubmit={(e) => { e.preventDefault(); handleVerify(query); }} className="flex flex-col sm:flex-row gap-2 mb-12 bg-white p-4 rounded-xl border border-line shadow-sm">
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Enter Serial, SAVD ID, CNIC, or Name..." className="input flex-1 font-mono" style={{ height: 54, border: "none", background: "#f6f3ec" }} required />
-            <button type="submit" className="btn b1" style={{ height: 54 }} disabled={loading}>{loading ? "Verifying..." : "Verify Now"}</button>
+          <form onSubmit={(e) => { e.preventDefault(); handleVerify(query); }} className="flex flex-col sm:flex-row gap-3 mb-12 bg-white p-3 sm:p-4 rounded-xl border border-line shadow-sm">
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Serial, SAVD ID, CNIC or Name" aria-label="Certificate lookup" className="input w-full sm:flex-1 min-w-0 font-mono" style={{ height: 54, border: "none", background: "#f6f3ec", fontSize: 16, paddingLeft: 16, paddingRight: 16 }} required />
+            <button type="submit" className="btn b1 justify-center" style={{ height: 54 }} disabled={loading}>{loading ? "Verifying..." : "Verify Now"}</button>
           </form>
 
           {hasSearched && results.length === 0 && (

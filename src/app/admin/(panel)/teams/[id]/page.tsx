@@ -39,7 +39,7 @@ export default async function TeamManagePage({ params }: { params: Promise<{ id:
         {/* Main Info & Uploads */}
         <div className="space-y-6">
           {/* 👈 WRAPPED ACTION TO VOID */}
-          <form action={async (fd) => { await updateTeamAction(team.id, fd); }} className="card p-4 sm:p-6 grid gap-4">
+          <form action={async (fd: FormData) => { "use server"; await updateTeamAction(team.id, fd); }} className="card p-4 sm:p-6 grid gap-4">
             <h2 className="text-lg font-bold border-b border-line pb-2 mb-2">Team Profile</h2>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -87,7 +87,7 @@ export default async function TeamManagePage({ params }: { params: Promise<{ id:
             <h2 className="text-lg font-bold border-b border-line pb-2 mb-4">Prototype Media (Photos / Videos)</h2>
             
             {/* 👈 WRAPPED ACTION TO VOID */}
-            <form action={async (fd) => { await addTeamMediaAction(team.id, fd); }} className="flex flex-col sm:flex-row gap-2 items-end mb-6">
+            <form action={async (fd: FormData) => { "use server"; await addTeamMediaAction(team.id, fd); }} className="flex flex-col sm:flex-row gap-2 items-end mb-6">
               <div className="flex-1 w-full">
                 <label className="label">Upload Media</label>
                 <input type="file" name="mediaFiles" multiple accept="image/*,video/*" className="input" required style={{ paddingTop: 8 }} />
@@ -107,7 +107,7 @@ export default async function TeamManagePage({ params }: { params: Promise<{ id:
                   ) : (
                     <video src={m.file} className="w-full h-32 object-cover" />
                   )}
-                  <form action={async () => { await deleteTeamMediaAction(m.id, team.id); }} className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center">
+                  <form action={async () => { "use server"; await deleteTeamMediaAction(m.id, team.id); }} className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center">
                     <button type="submit" className="btn btn-sm btn-outline-light border-danger text-danger">Delete</button>
                   </form>
                 </div>

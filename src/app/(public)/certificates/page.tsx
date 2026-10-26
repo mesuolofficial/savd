@@ -52,13 +52,28 @@ export default function CertificatesVault() {
 
       <section className="pg">
         <div className="wrap">
-          <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2 max-w-4xl mx-auto mb-12" style={{ padding: 20, background: "#fff", borderRadius: 16, border: "1px solid var(--line)", boxShadow: "0 10px 30px -10px rgba(0,0,0,0.05)" }}>
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by Name, SAVD ID, SAP ID, CNIC, or Serial..." className="input flex-1" style={{ height: 54, border: "none", background: "#f6f3ec" }} />
-            <button type="submit" className="btn b1" style={{ height: 54 }}>Search</button>
-            {query && <button type="button" onClick={() => { setQuery(""); search("", 1); }} className="btn b2" style={{ height: 54, borderColor: "var(--line)", color: "var(--ink)" }}>Clear</button>}
+          <form
+            onSubmit={handleSearch}
+            className="flex flex-col sm:flex-row gap-3 max-w-4xl mx-auto mb-10 p-3 sm:p-5"
+            style={{ background: "#fff", borderRadius: 16, border: "1px solid var(--line)", boxShadow: "0 10px 30px -10px rgba(0,0,0,0.05)" }}
+          >
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Name, SAVD ID, SAP ID, CNIC or Serial"
+              aria-label="Search certificates"
+              className="input w-full sm:flex-1 min-w-0"
+              style={{ height: 54, border: "none", background: "#f6f3ec", fontSize: 16, paddingLeft: 16, paddingRight: 16 }}
+            />
+            <div className="flex gap-2">
+              <button type="submit" className="btn b1 flex-1 sm:flex-none justify-center" style={{ height: 54 }}>Search</button>
+              {query && (
+                <button type="button" onClick={() => { setQuery(""); search("", 1); }} className="btn b2 flex-1 sm:flex-none justify-center" style={{ height: 54, borderColor: "var(--line)", color: "var(--ink)" }}>Clear</button>
+              )}
+            </div>
           </form>
 
-          <div className="mb-6 flex justify-between items-center">
+          <div className="mb-6 flex flex-wrap justify-between items-center gap-x-4 gap-y-2">
             <p className="text-sm font-semibold text-mist">Showing {results.length} of {totalCount} certificates</p>
             <Link href="/certificates/verify" className="more">Go to Verification Portal →</Link>
           </div>
