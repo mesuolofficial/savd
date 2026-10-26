@@ -131,7 +131,7 @@ export default async function PublicArchiveDetailPage({ params }: { params: Prom
               <ArchiveHeading title="Competing Teams" icon={<Users className="w-5 h-5" />} />
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
                 {comp.teams.map(t => (
-                  <Link key={t.id} href={`/teams/${t.id}`} className="card p-6 text-center hover:shadow-lg transition-shadow bg-white border border-line flex flex-col items-center group">
+                  <Link key={t.id} href={`/teams/${t.slug}`} className="card p-6 text-center hover:shadow-lg transition-shadow bg-white border border-line flex flex-col items-center group">
                     {t.logo ? <img src={t.logo} className="w-16 h-16 object-contain mb-4 transition-transform group-hover:scale-110" /> : <div className="w-16 h-16 rounded-full bg-signal text-white flex items-center justify-center text-2xl font-bold mb-4">{t.name[0]}</div>}
                     <p className="font-bold text-ink">{t.name}</p>
                     <p className="text-xs text-mist mt-1">{t.universityText}</p>

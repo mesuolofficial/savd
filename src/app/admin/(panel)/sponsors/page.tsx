@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { Notice } from "@/components/admin/Notice";
+import { SubmitButton } from "@/components/SubmitButton";
 import { addSponsorAction, updateSponsorAction, deleteSponsorAction } from "@/lib/actions/reference.actions";
 
 export default async function SponsorsAdminPage({ searchParams }: { searchParams: Promise<{ msg?: string }> }) {
@@ -29,7 +30,7 @@ export default async function SponsorsAdminPage({ searchParams }: { searchParams
         <div><label className="label">Website</label><input name="websiteUrl" className="input" placeholder="https://" /></div>
         <div><label className="label">Order</label><input name="sortOrder" type="number" className="input" defaultValue="0" /></div>
         <div><label className="label">Logo</label><input type="file" name="logo" accept="image/*" className="input" style={{ paddingTop: 8 }} /></div>
-        <button type="submit" className="btn btn-primary">Add</button>
+        <SubmitButton pendingLabel="Adding…" className="btn btn-primary">Add</SubmitButton>
       </form>
 
       {/* List */}
@@ -52,8 +53,8 @@ export default async function SponsorsAdminPage({ searchParams }: { searchParams
               <input type="file" name="logo" accept="image/*" className="input" style={{ paddingTop: 8 }} />
               {sp.logo && <span className="text-xs text-success mt-1 block">Logo exists</span>}
             </div>
-            <button type="submit" className="btn btn-outline-light">Save</button>
-            <button formAction={deleteSponsorAction} className="btn text-danger hover:bg-danger/10">Delete</button>
+            <SubmitButton name="intent" value="save" pendingLabel="Saving…" className="btn btn-outline-light">Save</SubmitButton>
+            <SubmitButton name="intent" value="delete" formAction={deleteSponsorAction} pendingLabel="Deleting…" confirmMessage={`Delete ${sp.name}? This cannot be undone.`} className="btn text-danger hover:bg-danger/10">Delete</SubmitButton>
           </form>
         ))}
       </div>

@@ -2,7 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth";
 import { Notice } from "@/components/admin/Notice";
 import { updateApplicationStatusAction } from "@/lib/actions/application.actions";
-import { CopyLinkInput } from "@/components/admin/CopyLinkInput"; // <--- IMPORTED
+import { CopyLinkInput } from "@/components/admin/CopyLinkInput";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export default async function ApplicationsPage({ searchParams }: { searchParams: Promise<{ msg?: string }> }) {
   await requireAdmin("sponsors", "full");
@@ -53,8 +54,8 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
                         <form action={updateApplicationStatusAction} className="flex gap-2">
                           <input type="hidden" name="id" value={s.id} />
                           <input type="hidden" name="type" value="sponsor" />
-                          <button name="status" value="APPROVED" className="btn btn-sm bg-success/20 text-success">Approve</button>
-                          <button name="status" value="REJECTED" className="btn btn-sm bg-danger/20 text-danger">Reject</button>
+                          <SubmitButton name="status" value="APPROVED" pendingLabel="Approving…" className="btn btn-sm bg-success/20 text-success">Approve</SubmitButton>
+                          <SubmitButton name="status" value="REJECTED" pendingLabel="Rejecting…" className="btn btn-sm bg-danger/20 text-danger" confirmMessage="Reject this application?">Reject</SubmitButton>
                         </form>
                       </td>
                     </tr>
@@ -85,8 +86,8 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
                         <form action={updateApplicationStatusAction} className="flex gap-2">
                           <input type="hidden" name="id" value={p.id} />
                           <input type="hidden" name="type" value="partner" />
-                          <button name="status" value="APPROVED" className="btn btn-sm bg-success/20 text-success">Approve</button>
-                          <button name="status" value="REJECTED" className="btn btn-sm bg-danger/20 text-danger">Reject</button>
+                          <SubmitButton name="status" value="APPROVED" pendingLabel="Approving…" className="btn btn-sm bg-success/20 text-success">Approve</SubmitButton>
+                          <SubmitButton name="status" value="REJECTED" pendingLabel="Rejecting…" className="btn btn-sm bg-danger/20 text-danger" confirmMessage="Reject this application?">Reject</SubmitButton>
                         </form>
                       </td>
                     </tr>

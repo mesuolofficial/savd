@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Barlow, Barlow_Condensed, Lora, JetBrains_Mono, Noto_Nastaliq_Urdu } from "next/font/google";
 import "./globals.css";
+import { NavigationProgress } from "@/components/NavigationProgress";
 
 const barlow = Barlow({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-barlow", display: "swap" });
 const barlowCondensed = Barlow_Condensed({ subsets: ["latin"], weight: ["600", "700"], variable: "--font-barlow-condensed", display: "swap" });
@@ -19,8 +20,11 @@ export const viewport: Viewport = { themeColor: "#06192b" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${barlow.variable} ${barlowCondensed.variable} ${lora.variable} ${jetbrains.variable} ${urdu.variable}`}>
-      <body>{children}</body>
+    <html lang="en" data-scroll-behavior="smooth" className={`${barlow.variable} ${barlowCondensed.variable} ${lora.variable} ${jetbrains.variable} ${urdu.variable}`}>
+      <body>
+        <NavigationProgress />
+        {children}
+      </body>
     </html>
   );
 }
